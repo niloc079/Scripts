@@ -1,0 +1,22 @@
+##
+## In case you work with many AzSubs
+##
+$AzSub = "[AzSubId]"
+Select-AzSubscription $AzSub
+
+##
+## Variables
+##
+$AzVaultRg = "[AzVaultResourceGroup]"
+$AzVaultName = "[AzVaultName]"
+$AzVmName = "[AzVmName]"
+
+####### Script-Start #######
+
+$vault = Get-AzRecoveryServicesVault -ResourceGroupName $AzVaultRg -Name $AzVaultName
+$Container = Get-AzRecoveryServicesBackupContainer -ContainerType AzureVM -Status Registered -FriendlyName $AzVmName -VaultId $vault.ID
+$BackupItem = Get-AzRecoveryServicesBackupItem -Container $Container -WorkloadType AzureVM -VaultId $vault.ID
+
+Disable-AzRecoveryServicesBackupProtection -Item $BackupItem -VaultId $vault.ID -RemoveRecoveryPoints -Force
+
+####### Script-End #######

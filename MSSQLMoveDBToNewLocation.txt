@@ -1,0 +1,75 @@
+--
+-- Name: MSSQLMoveDBToNewLocation
+-- Created Date: 2020-04-29
+-- Purpose: Move databases
+-- Usage: SQL, PowerShell
+-- 
+-- Instructions//
+-- Update database name [DATABASE_TO_MOVE]
+-- Update paths C:\, F:\ and G:\
+--
+-- SQL-START
+--
+--Gets Database Logical
+USE master;
+SELECT 
+  name 'Logical Name', 
+  physical_name 'File Location'
+FROM sys.master_files;
+
+--Gets Database Logical
+SELECT name, physical_name AS NewLocation, state_desc AS OnlineStatus
+FROM sys.master_files  
+WHERE database_id = DB_ID(N'[DATABASE_TO_MOVE]')  
+GO
+
+ALTER DATABASE [DATABASE_TO_MOVE]   
+    MODIFY FILE ( NAME = [DATABASE_TO_MOVE],   
+                  FILENAME = 'F:\MSSQL\DATA\[DATABASE_TO_MOVE].mdf');  
+GO
+ 
+ALTER DATABASE [DATABASE_TO_MOVE]  
+    MODIFY FILE ( NAME = [DATABASE_TO_MOVE]_log,   
+                  FILENAME = 'G:\MSSQL\Logs\[DATABASE_TO_MOVE]_log.ldf');  
+GO
+
+ALTER DATABASE [DATABASE_TO_MOVE] SET OFFLINE;  
+GO
+
+--
+-- SQL-END
+--
+##
+## POWERSHELL-START
+##
+
+GET-ITEM "C:\Program Files\Microsoft SQL Server\MSSQL14.MSSQLSERVER\MSSQL\DATA\[DATABASE_TO_MOVE].mdf"
+GET-ITEM "F:\MSSQL\Data\[DATABASE_TO_MOVE].mdf"
+GET-ITEM "C:\Program Files\Microsoft SQL Server\MSSQL14.MSSQLSERVER\MSSQL\DATA\[DATABASE_TO_MOVE]_log.ldf"
+GET-ITEM "G:\MSSQL\Logs\[DATABASE_TO_MOVE]_log.ldf"
+
+MOVE-ITEM -Path "C:\Program Files\Microsoft SQL Server\MSSQL14.MSSQLSERVER\MSSQL\DATA\[DATABASE_TO_MOVE].mdf" -Destination "F:\MSSQL\Data\[DATABASE_TO_MOVE].mdf"
+MOVE-ITEM -Path "C:\Program Files\Microsoft SQL Server\MSSQL14.MSSQLSERVER\MSSQL\DATA\[DATABASE_TO_MOVE]_log.ldf" -Destination "G:\MSSQL\Logs\[DATABASE_TO_MOVE]_log.ldf"
+
+##
+## POWERSHELL-END
+##
+--
+-- SQL-START
+--
+
+--Set permissions (as needed) to new path
+-- Grant "NT SERVICE\MSSQLSERVER" if default instance
+-- Grant "Domain\Service Account" if configured with runas account
+
+ALTER DATABASE PolicyCenter SET ONLINE;  
+GO
+
+SELECT name, physical_name AS NewLocation, state_desc AS OnlineStatus
+FROM sys.master_files  
+WHERE database_id = DB_ID(N'[DATABASE_TO_MOVE]')  
+GO
+
+--
+-- SQL-END
+--

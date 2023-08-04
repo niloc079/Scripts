@@ -1,0 +1,137 @@
+##
+## Last Updated: 2020-04-24
+## Purpose: Deploy Single Azure Load Balancer Standard with 2 VIPS for usage with SQL Always On Clustering
+## Source: https://github.com/niloc079/AzureLoadBalancers/blob/master/Deploy-AzLB-Std-SingleVIP-HAPorts
+## Created by: TBD
+## Created by Email: TBD
+## Organization: TBD
+## Environment: TBD
+## Application: TBD
+##
+## Technical Reference: https://docs.microsoft.com/en-us/azure/load-balancer/load-balancer-get-started-ilb-arm-ps
+## Technical Reference: https://github.com/Huachao/azure-content/blob/master/articles/load-balancer/load-balancer-internal-arm-powershell.md
+## Technical Reference: https://github.com/MicrosoftDocs/azure-docs/blob/master/articles/load-balancer/load-balancer-multiple-ip-powershell.md
+## Technical Reference: https://docs.microsoft.com/en-us/azure/load-balancer/load-balancer-distribution-mode
+##
+## Usage;
+## Replace all values within brackets [] with value data from environment
+##
+#
+#Variables [START]
+#
+
+#ADzDefaults
+$AzLoc = "[AzLocation]" #Azure Location Name
+$SubID = "[AzSubID]" #Azure Subscription ID
+
+#Tags
+$TagCreatedBy = "[AzTagEmail]"             #Email or name
+$TagCreatedDate = "[AzTagCreatedDate]"     #Created date, update format as needed
+$TagApplication = "[AzTagApp]"          #Azure Application, exmp: ADFS, SAP
+$TagEnvironment = "[AzTagEnv]"          #Azure Environment, exmp: PRD, QA, TEST, DEV
+$TagFunction = "[AzTagFunction]"  #Function/Type, exmp: LB - Load Balancer, SQL - SQL Server
+$TagLocation = "[AzTagLoc]"   #Azure Location, exmp: USCE - Central US, use if [AzLoc] isn't in the correct format
+$TagObjectSKU = "[AzTagSku]"              #Azure SKU, exmp: Free, Standard, Premium
+
+#AzNetwork
+$AzVnetRg = "[AzLbVnetRg]"              #Azure Virtual Network Resource Group (Not the AzLB)
+$AzVnet = "[AzLbVnet]"                  #Azure Virtual Network for Azure Load Balancer, must be same VNET, usually same AzSubnet
+$AzSubnet = "[AzLbSubnet]"              #Azure Subnet (inside above VNET) for Azure Load Balancer
+
+#AzLoadBalancer
+$AzAlbRg = "[AzLbRg]"                   #Azure Resource Group for Azure Load Balancer
+$AzAlbName = "[AzLbName]"               #Azure Load Balancer Name
+
+#Frontend1 [WSFC Cluster IP]
+$AzAlbFe1 = "[AzLbName]FE1"             #Azure Load Balancer Frontend Name #1
+$AzAlbRu1 = "[AzLbName]RU1"             #Azure Load Balancer Rule Name #1
+$AzAlbHp1 = "[AzLbName]HP1"             #Azure Load Balancer Health Probe #1
+$AzAlbBe1 = "[AzLbName]BE1"             #Azure Load Balancer Backend Pool #1
+$AzAlbFe1Prt = "58888"                  #WSFC Cluster listener
+$AzAlbBe1Prt = "58888"                  #WSFC Cluster listener
+$AzAlbIp1 = "[0.0.0.0]"                 #Azure Load Balancer Frontend IP
+$AzAlbHp1Prt = "58888"                  #WSFC Cluster listener
+
+#FE2 [AG Listener]
+$AzAlbFe2 = "[AzLbName]FE2"             #Azure Load Balancer Frontend Name #2
+$AzAlbRu3 = "[AzLbName]RU2"             #Azure Load Balancer Rule Name #2
+$AzAlbHp2 = "[AzLbName]HP2"             #Azure Load Balancer Health Probe #2
+$AzAlbBe2 = "[AzLbName]BE2"             #Azure Load Balancer Backend Pool #2
+$AzAlbFePrt2 = "1433"                   #AG AlwaysOn listener
+$AzAlbBePrt2 = "1433"                   #AG AlwaysOn listener
+$AzAlbIp2 = "[0.0.0.0]"                 #Azure Load Balancer Frontend IP
+$AzAlbHpPrt2 = "59999"                  #Dummy AlwaysOn listener, will be configured in cluster config
+
+#VM NICs
+$AzVMRg = "[AzVmRg]"                    #Azure Resource Group for Azure VM's
+$AzVM1 = "[AzVmName1]"                  #Azure VM 1 Name for backend pool
+$AzVMNic1 = "[AzVmNicName1]"            #Azure VM 1 NIC name for backend pool
+$AzVM2 = "[AzVmName2]"                  #Azure VM 2 Name for backend pool
+$AzVMNic2 = "[AzVmNicName2]"            #Azure VM 1 NIC name for backend pool
+#
+# Variables [END]
+#
+#
+# Script [Start]
+#
+#Login and Connect
+#Clear-AzContext                         #Clears logins
+Connect-AzAccount
+Get-AzSubscription
+Select-AzSubscription -Subscriptionid $SubID
+
+#Get VNET
+$vnet= Get-AzVirtualNetwork -Name $AzVnet -ResourceGroupName $AzVnetRg
+$Subnet = Get-AzVirtualNetworkSubnetConfig -Name $AzSubnet -VirtualNetwork $vnet
+
+#New IP and BE
+$frontendIP = New-AzLoadBalancerFrontendIpConfig -Name $AzAlbFe1 -PrivateIpAddress $AzAlbIp1 -Subnet $Subnet
+$beaddresspool = New-AzLoadBalancerBackendAddressPoolConfig -Name $AzAlbBe1
+
+#LB Configuration
+$healthProbe = New-AzLoadBalancerProbeConfig -Name $AzAlbHp1 -Protocol tcp -Port $AzAlbHp1Prt -IntervalInSeconds 5 -ProbeCount 2
+$lbrule = New-AzLoadBalancerRuleConfig -Name $AzAlbRu1 -FrontendIpConfiguration $frontendIP -BackendAddressPool $beAddressPool -Probe $healthProbe -Protocol Tcp -FrontendPort $AzAlbFe1Prt -BackendPort $AzAlbBe1Prt -LoadDistribution Default -IdleTimeoutInMinutes 4 -EnableFloatingIP
+
+#Create LB
+$NRPLB = New-AzLoadBalancer -ResourceGroupName $AzAlbRg -Name $AzAlbName -Location $AzLoc -FrontendIpConfiguration $frontendIP -LoadBalancingRule $lbrule -BackendAddressPool $beAddressPool -Probe $healthProbe -Sku Standard
+
+#Assign NIC
+$lb = Get-AzLoadBalancer -name $AzAlbName -resourcegroupname $AzAlbRg
+
+#Save
+$backend = Get-AzLoadBalancerBackendAddressPoolConfig -name $AzAlbBe1 -LoadBalancer $lb
+$nic1 = Get-AzNetworkInterface -Name $AzVMNic1
+$nic1.IpConfigurations[0].LoadBalancerBackendAddressPools=$backend
+Set-AzNetworkInterface -NetworkInterface $nic1
+$nic2 = Get-AzNetworkInterface -Name $AzVMNic2
+$nic2.IpConfigurations[0].LoadBalancerBackendAddressPools=$backend
+Set-AzNetworkInterface -NetworkInterface $nic2
+
+#Add Second LB Config
+$ILB = Get-AzLoadBalancer -Name $AzAlbName -ResourceGroupName $AzAlbRg 
+$VNet = Get-AzVirtualNetwork -Name $AzVnet -ResourceGroupName $AzVnetRg
+$Subnet = Get-AzVirtualNetworkSubnetConfig -VirtualNetwork $VNet -Name $AzSubnet
+
+$ILB | Add-AzLoadBalancerFrontendIpConfig -Name $AzAlbFe2 -PrivateIpAddress $AzAlbIp2 -SubnetId $Subnet.Id 
+$ILB | Add-AzLoadBalancerProbeConfig -Name $AzAlbHp2  -Protocol Tcp -Port $AzAlbHpPrt2 -IntervalInSeconds 5 -ProbeCount 2  | Set-AzLoadBalancer 
+$ILB = Get-AzLoadBalancer -Name $AzAlbName -ResourceGroupName $AzAlbRg
+$FEConfig = get-AzLoadBalancerFrontendIpConfig -Name $AzAlbFe2 -LoadBalancer $ILB
+$SQLHealthProbe  = Get-AzLoadBalancerProbeConfig -Name $AzAlbHp2 -LoadBalancer $ILB
+$BEConfig = Get-AzLoadBalancerBackendAddressPoolConfig -Name $ILB.BackendAddressPools[0].Name -LoadBalancer $ILB 
+$ILB | Add-AzLoadBalancerRuleConfig -Name $AzAlbRu2 -FrontendIpConfiguration $FEConfig  -BackendAddressPool $BEConfig -Probe $SQLHealthProbe -Protocol tcp -FrontendPort $AzAlbFe2Prt -BackendPort $AzAlbBe2Prt -LoadDistribution Default -EnableFloatingIP | Set-AzLoadBalancer 
+
+#Tags
+$resource = Get-AzResource -ResourceName $AzAlbName -ResourceGroupName $AzAlbRg
+Set-AzResource -Tag @{ 
+"CreatedBy"=$TagCreatedBy; 
+"CreatedDate"=$TagCreatedDate; 
+"Application"=$TagApplication; 
+"Environment"=$TagEnvironment; 
+"Function"=$TagFunction; 
+"Location"=$TagLocation; 
+"ObjectSKU"=$TagObjectSKU; 
+} -ResourceId $resource.ResourceId -Force
+
+#
+# Script [End]
+#

@@ -1,0 +1,43 @@
+##
+## Last Updated: 2020-04-27
+## Purpose: Configuration of SQL AlwaysOn using Azure Load Balancers to support AzLB Health Check
+## Source: x
+## Created by: TBD
+## Created by Email: TBD
+## Organization: TBD
+## Environment: TBD
+## Application: TBD
+##
+##
+## Usage;
+## Replace all values within brackets [] with value data from environment
+## Run on each instance
+## Some say you don't need to run both, in my case both were needed
+##
+##--------------------------------------------------------------
+#--  Probe Check Script:
+Clear-Host
+Get-ClusterResource |`
+Where-Object {$_.ResourceType.Name -like "IP Address"} |`
+Get-ClusterParameter |`
+Where-Object {($_.Name -like "Network") -or ($_.Name -like "Address") -or ($_.Name -like "ProbePort") -or ($_.Name -like "SubnetMask")}
+
+$ClusterNetworkName = "[AzClusterNetworkNameforWSFC]" # the cluster network name (Use Get-ClusterNetwork on Windows Server 2012 of higher to find the name)
+$IPResourceName = "[AzClusterNameforWSFC]" # the IP Address resource name
+$ClusterCoreIP = "[AzClusterIPforWSFC]" # the IP Address of the Cluster IP resource. This is the static IP address for the load balancer you configured in the Azure portal.
+[int]$ClusterProbePort = “58888” # The probe port from the WSFCEndPointprobe in the Azure portal. This port must be different from the probe port for the availability group listener probe port.
+
+Import-Module FailoverClusters
+Get-ClusterResource $IPResourceName | Set-ClusterParameter -Multiple @{"Address"="$ClusterCoreIP";"ProbePort"=$ClusterProbePort;"SubnetMask"="255.255.255.255";"Network"="$ClusterNetworkName";"EnableDhcp"=0}
+
+$ClusterNetworkName = "[AzClusterNetworkNameforAG]" # the cluster network name (Use Get-ClusterNetwork on Windows Server 2012 of higher to find the name)
+$IPResourceName = "[AzClusterNameforAG]" # the IP Address resource name
+$ListenerILBIP = "[AzClusterIPforAG]" # the IP Address of the Internal Load Balancer (ILB). This is the static IP address for the load balancer you configured in the Azure portal.
+[int]$ListenerProbePort = "59999"
+
+Import-Module FailoverClusters
+Get-ClusterResource $IPResourceName | Set-ClusterParameter -Multiple @{"Address"="$ListenerILBIP";"ProbePort"=$ListenerProbePort;"SubnetMask"="255.255.255.255";"Network"="$ClusterNetworkName";"EnableDhcp"=0}
+
+#
+# Script End
+#

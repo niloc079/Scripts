@@ -1,0 +1,32 @@
+--
+-- Name: MSSQLBackupDatabasesWithDate
+-- Created Date: 2020-04-29
+-- Purpose: Backup databases within path and include date
+-- 
+-- Instructions//
+-- Update path from [E:\MSSQL\Backup\]
+-- Update databases [MY_DATABASE_1] to your databases
+-- Add/Remove lines as needed
+--
+-- SCRIPT-START
+--
+USE [master] ; 
+DECLARE @MyFileName varchar(200)
+SELECT @MyFileName='E:\MSSQL\Backup\[MY_DATABASE_1]_' + REPLACE(convert(nvarchar(20),GetDate(),112),':','-') + '.bak'
+BACKUP DATABASE [MY_DATABASE_1] TO DISK=@MyFileName
+GO
+DECLARE @MyFileName varchar(200)
+SELECT @MyFileName='E:\MSSQL\Backup\[MY_DATABASE_2]_' + REPLACE(convert(nvarchar(20),GetDate(),112),':','-') + '.bak'
+BACKUP DATABASE [MY_DATABASE_2] TO DISK=@MyFileName
+GO
+DECLARE @MyFileName varchar(200)
+SELECT @MyFileName='E:\MSSQL\Backup\[MY_DATABASE_3]_' + REPLACE(convert(nvarchar(20),GetDate(),112),':','-') + '.bak'
+BACKUP DATABASE [MY_DATABASE_3] TO DISK=@MyFileName
+GO
+DECLARE @MyFileName varchar(200)
+SELECT @MyFileName='E:\MSSQL\Backup\[MY_DATABASE_5]_' + REPLACE(convert(nvarchar(20),GetDate(),112),':','-') + '.bak'
+BACKUP DATABASE [MY_DATABASE_5] TO DISK=@MyFileName
+GO
+--
+-- SCRIPT-END
+--

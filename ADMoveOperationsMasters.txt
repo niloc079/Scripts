@@ -1,0 +1,38 @@
+# Title: ADMoveOperationsMasters
+# Why: Move all DC FSMO roles to new DC
+# Who: TBD
+# Created Date: TBD
+#
+# Link: https://docs.microsoft.com/en-us/powershell/module/addsadministration/move-addirectoryserveroperationmasterrole?view=win10-ps
+#
+####### Variables-Start #######
+
+$AzNewDC = "[NewDC]" #Use FQDN
+$AzOldDC = "[OldDC]" #Use FQDN
+$AzCred = "[Domain\Cred]" #Credentials for login, usually enterprise admin
+
+####### Variables-End #######
+####### Script-Start #######
+
+$Server = Get-ADDomainController -Identity $AzNewDC
+Move-ADDirectoryServerOperationMasterRole -Identity $Server -OperationMasterRole PDCEmulator -Confirm:$False #0
+Move-ADDirectoryServerOperationMasterRole -Identity $Server -OperationMasterRole RIDMaster -Confirm:$False #1
+Move-ADDirectoryServerOperationMasterRole -Identity $Server -OperationMasterRole InfrastructureMaster -Confirm:$False #2
+Move-ADDirectoryServerOperationMasterRole -Identity $Server -OperationMasterRole SchemaMaster -Confirm:$False #3
+Move-ADDirectoryServerOperationMasterRole -Identity $Server -OperationMasterRole DomainNamingMaster -Confirm:$False #4
+
+#Get Roles
+Get-ADDomain | Select-Object SchemaMaster,DomainNamingMaster,PDCEmulator,RIDMaster,InfrastructureMaster | Format-List
+Get-ADForest | Select-Object SchemaMaster,DomainNamingMaster,PDCEmulator,RIDMaster,InfrastructureMaster | Format-List
+
+#Get AD
+Get-ADForest
+Get-ADDomain
+
+#Remove Computer (Runon)
+#Remove-Computer -UnjoinDomaincredential $AzCred -PassThru -Verbose
+
+#Restart
+#Restart-Computer -Computername $AzOldDC
+
+####### Script-End #######
